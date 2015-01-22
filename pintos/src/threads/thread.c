@@ -28,6 +28,9 @@ static struct list ready_list;
    when they are first scheduled and removed when they exit. */
 static struct list all_list;
 
+//blocked list
+static struct list blocked_list;
+
 /* Idle thread. */
 static struct thread *idle_thread;
 
@@ -92,6 +95,7 @@ thread_init (void)
   lock_init (&tid_lock);
   list_init (&ready_list);
   list_init (&all_list);
+  list_init (&blocked_list);
 
   /* Set up a thread structure for the running thread. */
   initial_thread = running_thread ();
@@ -133,7 +137,23 @@ thread_tick (void)
 #endif
   else
     kernel_ticks++;
+  
 
+  //This is hella ghetto and not working the way it should
+  //make sure to get blocked_list working!!!!
+  struct list_elem *e;
+  for (e = list_begin (&all_list); e != list_end (&all_list);
+       e = list_next (e))
+    {
+      struct thread *t = list_entry (e, struct thread, allelem);
+      if(t->status == THREAD_BLOCKED)
+      {
+	  if(t->time_sleep >0)
+	      t->time_sleep--;
+	  else
+	  thread_unblock(t);
+      }
+    }
   /* Enforce preemption. */
   if (++thread_ticks >= TIME_SLICE)
     intr_yield_on_return ();
@@ -405,7 +425,7 @@ idle (void *idle_started_ UNUSED)
       /* Let someone else run. */
       intr_disable ();
       thread_block ();
-
+      //printf("fuck");
       /* Re-enable interrupts and wait for the next one.
 
          The `sti' instruction disables interrupts until the
@@ -469,6 +489,8 @@ init_thread (struct thread *t, const char *name, int priority)
   t->stack = (uint8_t *) t + PGSIZE;
   t->priority = priority;
   t->magic = THREAD_MAGIC;
+  t->time_sleep = 0;
+  list_push_back(&blocked_list,&t->blockedelem);
   list_push_back (&all_list, &t->allelem);
 }
 
@@ -495,8 +517,15 @@ next_thread_to_run (void)
 {
   if (list_empty (&ready_list))
     return idle_thread;
-  else
+  els
+  {
+      //dont pop off the front of the list
+      //do a priority queue
+      //try a real quick ghetto one first
+      struct list_elem *e;
+      
     return list_entry (list_pop_front (&ready_list), struct thread, elem);
+  }
 }
 
 /* Completes a thread switch by activating the new thread's page
@@ -555,6 +584,7 @@ thread_schedule_tail (struct thread *prev)
 static void
 schedule (void) 
 {
+    //dont just grab any thread available
   struct thread *cur = running_thread ();
   struct thread *next = next_thread_to_run ();
   struct thread *prev = NULL;
