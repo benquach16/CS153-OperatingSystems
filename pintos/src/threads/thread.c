@@ -435,6 +435,7 @@ thread_set_priority (int new_priority)
 	    }
 	}
   }
+  
   //make sure we swap threads if the priority got lowered too much
 //BUT FIRST MAKE SURE THAT IFTHIS THREAD IS HOLDING A LOCK
   //THE DONATORS DONATE
@@ -446,6 +447,7 @@ thread_set_priority (int new_priority)
 	  if(t->priority > thread_current()->priority)
 	      thread_current()->priority = t->priority;
       }
+
 
     if (list_empty (&ready_list))
     {
