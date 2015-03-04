@@ -92,18 +92,15 @@ struct thread
 
     /* Shared between thread.c and synch.c. */
     struct list_elem elem;              /* List element. */
-      struct list_elem donateelem;
-      struct list donaters;
+
 #ifdef USERPROG
     /* Owned by userprog/process.c. */
     uint32_t *pagedir;                  /* Page directory. */
 #endif
-      unsigned time_sleep;
-      struct lock* waiting_lock;
-      int initial_priority;
-      bool donated_priority;
+
     /* Owned by thread.c. */
     unsigned magic;                     /* Detects stack overflow. */
+      bool exit;
   };
 
 /* If false (default), use round-robin scheduler.
@@ -141,7 +138,5 @@ int thread_get_nice (void);
 void thread_set_nice (int);
 int thread_get_recent_cpu (void);
 int thread_get_load_avg (void);
-
-void thread_queue_ready(struct thread *);
-
+bool get_thread(tid_t tid);
 #endif /* threads/thread.h */

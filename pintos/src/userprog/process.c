@@ -37,7 +37,8 @@ process_execute (const char *file_name)
   if (fn_copy == NULL)
     return TID_ERROR;
   strlcpy (fn_copy, file_name, PGSIZE);
-
+  char* program = palloc_get_page(0);
+  file_name = strtok_r(file_name, " ", program);
   /* Create a new thread to execute FILE_NAME. */
   tid = thread_create (file_name, PRI_DEFAULT, start_process, fn_copy);
   if (tid == TID_ERROR)
@@ -50,6 +51,7 @@ process_execute (const char *file_name)
 static void
 start_process (void *file_name_)
 {
+    printf(file_name_);
   char *file_name = file_name_;
   struct intr_frame if_;
   bool success;
@@ -85,21 +87,31 @@ start_process (void *file_name_)
 
    This function will be implemented in problem 2-2.  For now, it
    does nothing. */
+static bool exit = false;
 int
 process_wait (tid_t child_tid UNUSED) 
 {
-  return -1;
+    int i = 0;
+    while(get_thread(child_tid));
+    printf("shit");
+    process_exit();
+  return 0;
 }
 
 /* Free the current process's resources. */
 void
 process_exit (void)
 {
+
   struct thread *cur = thread_current ();
+    printf("%s exit\n",cur->name);
+  exit = true;
+  cur->exit=true;
   uint32_t *pd;
 
   /* Destroy the current process's page directory and switch back
      to the kernel-only page directory. */
+
   pd = cur->pagedir;
   if (pd != NULL) 
     {
@@ -110,9 +122,9 @@ process_exit (void)
          directory before destroying the process's page
          directory, or our active page directory will be one
          that's been freed (and cleared). */
-      cur->pagedir = NULL;
-      pagedir_activate (NULL);
-      pagedir_destroy (pd);
+	//cur->pagedir = NULL;
+	//pagedir_activate (NULL);
+	//pagedir_destroy (pd);
     }
 }
 
@@ -437,10 +449,11 @@ setup_stack (void **esp)
     {
       success = install_page (((uint8_t *) PHYS_BASE) - PGSIZE, kpage, true);
       if (success)
-        *esp = PHYS_BASE;
+        *esp = PHYS_BASE-12;
       else
         palloc_free_page (kpage);
     }
+  
   return success;
 }
 
