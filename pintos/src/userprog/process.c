@@ -15,6 +15,7 @@
 #include "threads/init.h"
 #include "threads/interrupt.h"
 #include "threads/palloc.h"
+#include "threads/malloc.h"
 #include "threads/thread.h"
 #include "threads/vaddr.h"
 
@@ -36,10 +37,16 @@ process_execute (const char *file_name)
   fn_copy = palloc_get_page (0);
   if (fn_copy == NULL)
     return TID_ERROR;
-  strlcpy (fn_copy, file_name, PGSIZE);
-  char* program = palloc_get_page(0);
-  file_name = strtok_r(file_name, " ", program);
+  
+  //char* program = palloc_get_page(0);
+  //file_name = strtok_r(file_name, " ", &program);
+  //fn_copy = strtok_r(fn_copy, " ", &program);
   /* Create a new thread to execute FILE_NAME. */
+  //char *program = malloc(40*sizeof(char));
+  //file_name = strtok_r(file_name, " " , &program);
+  strlcpy (fn_copy, file_name, PGSIZE);
+  char *program;
+  file_name = strtok_r((char*)file_name, " ", &program);
   tid = thread_create (file_name, PRI_DEFAULT, start_process, fn_copy);
   if (tid == TID_ERROR)
     palloc_free_page (fn_copy); 
@@ -51,7 +58,6 @@ process_execute (const char *file_name)
 static void
 start_process (void *file_name_)
 {
-    printf(file_name_);
   char *file_name = file_name_;
   struct intr_frame if_;
   bool success;
@@ -91,9 +97,7 @@ static bool exit = false;
 int
 process_wait (tid_t child_tid UNUSED) 
 {
-    int i = 0;
     while(get_thread(child_tid));
-    printf("shit");
     process_exit();
   return 0;
 }
@@ -104,7 +108,7 @@ process_exit (void)
 {
 
   struct thread *cur = thread_current ();
-    printf("%s exit\n",cur->name);
+    printf("%s: exit\n",cur->name);
   exit = true;
   cur->exit=true;
   uint32_t *pd;
@@ -207,7 +211,7 @@ struct Elf32_Phdr
 #define PF_W 2          /* Writable. */
 #define PF_R 4          /* Readable. */
 
-static bool setup_stack (void **esp);
+static bool setup_stack (void **esp, const char *file_name, char* args);
 static bool validate_segment (const struct Elf32_Phdr *, struct file *);
 static bool load_segment (struct file *file, off_t ofs, uint8_t *upage,
                           uint32_t read_bytes, uint32_t zero_bytes,
@@ -233,6 +237,23 @@ load (const char *file_name, void (**eip) (void), void **esp)
     goto done;
   process_activate ();
 
+
+  //INTERPRET ARGS HERE
+  char* fn_copy = palloc_get_page(0);
+  strlcpy (fn_copy, file_name, PGSIZE);
+  char *program;
+  file_name = strtok_r((char*)file_name, " ", &program);
+  
+/*
+  while(arg!=NULL)
+  {
+      printf(arg);
+      printf("\n");
+      argc++;
+      arg = strtok_r(NULL, " ", &program);
+      
+  }
+*/
   /* Open executable file. */
   file = filesys_open (file_name);
   if (file == NULL) 
@@ -312,9 +333,8 @@ load (const char *file_name, void (**eip) (void), void **esp)
           break;
         }
     }
-
   /* Set up stack. */
-  if (!setup_stack (esp))
+  if (!setup_stack (esp, file_name, fn_copy))
     goto done;
 
   /* Start address. */
@@ -436,10 +456,26 @@ load_segment (struct file *file, off_t ofs, uint8_t *upage,
   return true;
 }
 
+static void *
+push (uint8_t *kpage, size_t *ofs, const void *buf, size_t size) 
+{
+    size_t padsize = ROUND_UP (size, sizeof (uint32_t));
+  
+    if (*ofs < padsize){
+	return NULL;
+    }
+
+    *ofs -= padsize;
+  
+    memcpy (kpage + *ofs + (padsize - size), buf, size);
+  
+    return kpage + *ofs + (padsize - size);
+}
+
 /* Create a minimal stack by mapping a zeroed page at the top of
    user virtual memory. */
 static bool
-setup_stack (void **esp) 
+setup_stack (void **esp, const char* file_name, char *args) 
 {
   uint8_t *kpage;
   bool success = false;
@@ -449,11 +485,157 @@ setup_stack (void **esp)
     {
       success = install_page (((uint8_t *) PHYS_BASE) - PGSIZE, kpage, true);
       if (success)
-        *esp = PHYS_BASE-12;
+        *esp = PHYS_BASE;
       else
         palloc_free_page (kpage);
     }
+
+  char *arg;
+  char *program;
+  int argc = 0;
   
+  char *getargs = palloc_get_page(0);
+  strlcpy (getargs, args, PGSIZE);
+  arg = strtok_r(getargs, " ", &program);
+  while(arg!=NULL)
+  {
+      argc++;
+      arg = strtok_r(NULL, " ", &program);
+  }
+  int pointers[argc];
+  arg = strtok_r(args, " ", &program);
+  int index = 0;
+  *((char*)*esp) = NULL;
+  *esp-=1;
+  while(arg!=NULL)
+  {
+      int len = strlen(arg);
+      *esp-=len;
+      int i;
+      pointers[index] = *esp;
+      index++;
+      for( i = 0; i < len; i++)
+      {
+	  *((char*)*esp) = arg[i];
+	  
+	  *esp+=1;
+      }
+
+      *((char*)*esp) = '\0';
+      *esp-=len+1;
+
+      arg = strtok_r(NULL, " ", &program);
+  }
+
+  //byte alignment
+  while((int)(*esp)%4 != 0)
+  {
+      *((uint8_t*)*esp) = 0;      
+      *esp-=1;
+  }
+  *esp-=1;
+  *((char*)*esp) = NULL;  
+  *esp-=4;
+
+  int j = 0;
+  index = 0;
+  for(j = 0; j < argc; j++)
+  {
+      int i;
+      *esp-=4;
+      for(i = 0; i < 4; i++)
+      {
+	  *((char*)*esp) = pointers[index];        
+	  pointers[index] = pointers[index]>>8;
+	  *esp+=1;      
+      }
+      *esp-=4;
+      index++;
+  }
+  
+  int arrayptr = *esp+4;
+  //printf("%d", arrayptr);
+  int i;
+  *esp-=4;
+  for(i = 0; i < 4; i++)
+  {
+      *((char*)*esp) = arrayptr;        
+      arrayptr = arrayptr>>8;
+      *esp+=1;
+  }  
+  *esp-=8;
+  *((int*)*esp) = argc;
+  *esp-=4;
+/*
+  char *a = "test\0";
+  char *program = "args-none\0";
+  int lena = strlen(a);
+  int lenb = strlen(program);
+  int i = 0;
+
+  *esp-=lena+1;
+  int aptr = *esp;
+  for( i = 0; i < lena; i++)
+  {
+      *((char*)*esp) = a[i];
+      *esp+=1;
+  }
+  *((char*)*esp) = '\0';
+
+  *esp-=lena+1;
+  *esp-=lenb;
+  int bptr = *esp;
+
+  for( i = 0; i < lenb; i++)
+  {
+      *((char*)*esp) = program[i];
+      *esp+=1;
+  }
+  *((char*)*esp) = '\0';
+  *esp-=lenb+1;
+  //printf((char*)*esp); 
+  //byte alignment
+  while((int)(*esp)%4 != 0)
+  {
+      *((uint8_t*)*esp) = 0;      
+      *esp-=1;
+  }
+
+  *esp-=1;
+  *((char*)*esp) = NULL;  
+  *esp-=4;
+  for(i = 0; i < 4; i++)
+  {
+      *((char*)*esp) = aptr;        
+      aptr = aptr>>8;
+      *esp-=1;
+  }
+
+  for(i = 0; i < 4; i++)
+  {
+      *((char*)*esp) = bptr;        
+      bptr = bptr>>8;
+      *esp-=1;
+  }
+  
+  int arrayptr = *esp+4;
+  printf("%d", arrayptr);
+  for(i = 0; i < 4; i++)
+  {
+      *((char*)*esp) = arrayptr;        
+      arrayptr = arrayptr>>8;
+      *esp-=1;
+  }  
+  //*((char*)esp) = *((char*)(esp+4));
+  //*esp-=4;
+  *((int*)*esp) = 2;
+  *esp-=1;
+  *((char*)*esp) = NULL;
+  
+
+  */
+  printf("\n");
+  hex_dump(*esp, *esp, (PHYS_BASE-*esp),true);
   return success;
 }
 
