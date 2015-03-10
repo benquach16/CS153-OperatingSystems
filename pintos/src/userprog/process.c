@@ -111,6 +111,7 @@ process_exit (void)
 {
 
   struct thread *cur = thread_current ();
+  if(strcmp(cur->name, "main"))
     printf("%s: exit(0)\n",cur->name);
   exit = true;
   cur->exit=true;
