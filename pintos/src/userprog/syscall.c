@@ -128,6 +128,17 @@ syscall_handler (struct intr_frame *f)
 	  shutdown_power_off();
 	break;
       }
+	case SYS_CREATE:
+	{
+
+		char *filename =  (char*)(*(void**)(f->esp + 4));
+		int filesize = *(int*)(f->esp+8);
+		//printf(filename);
+		bool success = filesys_create(filename, filesize);
+		f->eax = success;
+		break;
+	}
+	
     case SYS_EXIT:
       {
 	args_checker(1, f);
