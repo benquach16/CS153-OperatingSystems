@@ -67,6 +67,8 @@ start_process (void *file_name_)
   if_.gs = if_.fs = if_.es = if_.ds = if_.ss = SEL_UDSEG;
   if_.cs = SEL_UCSEG;
   if_.eflags = FLAG_IF | FLAG_MBS;
+
+
   success = load (file_name, &if_.eip, &if_.esp);
 
   /* If load failed, quit. */
@@ -98,6 +100,7 @@ int
 process_wait (tid_t child_tid UNUSED) 
 {
     while(get_thread(child_tid));
+    //while(1);
     process_exit();
   return 0;
 }
@@ -108,7 +111,7 @@ process_exit (void)
 {
 
   struct thread *cur = thread_current ();
-    printf("%s: exit\n",cur->name);
+    printf("%s: exit(0)\n",cur->name);
   exit = true;
   cur->exit=true;
   uint32_t *pd;
@@ -490,19 +493,25 @@ setup_stack (void **esp, const char* file_name, char *args)
         palloc_free_page (kpage);
     }
 
+
+  
   char *arg;
   char *program;
   int argc = 0;
   
   char *getargs = palloc_get_page(0);
-  strlcpy (getargs, args, PGSIZE);
+
+  strlcat((char*)file_name, " /0", strlen(file_name)+2);
+  strlcat((char*)file_name, args, strlen(args) + strlen(file_name)+2);
+  strlcpy (getargs, file_name, PGSIZE);
+  //printf(file_name);
   arg = strtok_r(getargs, " ", &program);
   while(arg!=NULL)
   {
       argc++;
       arg = strtok_r(NULL, " ", &program);
   }
-  int pointers[argc];
+  int pointers[argc+1];
   arg = strtok_r(args, " ", &program);
   int index = 0;
   *((char*)*esp) = NULL;
@@ -510,6 +519,7 @@ setup_stack (void **esp, const char* file_name, char *args)
   while(arg!=NULL)
   {
       int len = strlen(arg);
+      //printf("%s\n",arg);
       *esp-=len;
       int i;
       pointers[index] = *esp;
@@ -517,13 +527,11 @@ setup_stack (void **esp, const char* file_name, char *args)
       for( i = 0; i < len; i++)
       {
 	  *((char*)*esp) = arg[i];
-	  
 	  *esp+=1;
       }
-
+      
       *((char*)*esp) = '\0';
       *esp-=len+1;
-
       arg = strtok_r(NULL, " ", &program);
   }
 
@@ -533,30 +541,31 @@ setup_stack (void **esp, const char* file_name, char *args)
       *((uint8_t*)*esp) = 0;      
       *esp-=1;
   }
-  *esp-=1;
+  //*esp-=1;
   *((char*)*esp) = NULL;  
   *esp-=4;
 
   int j = 0;
-  index = 0;
-  for(j = 0; j < argc; j++)
+  index--;
+  for(j = 0 ; j  < argc; j++)
   {
       int i;
+      int tt = pointers[index];
       *esp-=4;
       for(i = 0; i < 4; i++)
       {
-	  *((char*)*esp) = pointers[index];        
-	  pointers[index] = pointers[index]>>8;
-	  *esp+=1;      
-      }
+	  *((char*)*esp) = tt;        
+	  tt=tt>>8;
+	  *esp+=1;
+      }   
       *esp-=4;
-      index++;
+      index--;
   }
-  
   int arrayptr = *esp+4;
   //printf("%d", arrayptr);
-  int i;
+  //int i;
   *esp-=4;
+  int i;
   for(i = 0; i < 4; i++)
   {
       *((char*)*esp) = arrayptr;        
@@ -564,8 +573,14 @@ setup_stack (void **esp, const char* file_name, char *args)
       *esp+=1;
   }  
   *esp-=8;
-  *((int*)*esp) = argc;
-  *esp-=4;
+  *((char*)*esp) = argc-1;
+  *esp-=sizeof(void*);
+  //char *s = esp;
+  //memcpy(*esp, &s, sizeof(void*));
+
+
+
+
 /*
   char *a = "test\0";
   char *program = "args-none\0";
@@ -611,6 +626,7 @@ setup_stack (void **esp, const char* file_name, char *args)
       *esp-=1;
   }
 
+
   for(i = 0; i < 4; i++)
   {
       *((char*)*esp) = bptr;        
@@ -634,8 +650,9 @@ setup_stack (void **esp, const char* file_name, char *args)
   
 
   */
-  printf("\n");
-  hex_dump(*esp, *esp, (PHYS_BASE-*esp),true);
+  //printf("\n");
+  //hex_dump(*esp, *esp, (PHYS_BASE-*esp),true);
+  //*esp = PHYS_BASE -12;
   return success;
 }
 

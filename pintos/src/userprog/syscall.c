@@ -45,7 +45,8 @@ sys_write(void * args)
   }
   else if(fid == 1)
   {
-    putbuf(message, length);
+      //putbuf(message, length);
+      printf(message);
   }
   else
   {
@@ -87,6 +88,7 @@ syscall_handler (struct intr_frame *f)
       }
     case SYS_EXIT:
       {
+	  thread_exit();
       }
     case SYS_EXEC:
       {
