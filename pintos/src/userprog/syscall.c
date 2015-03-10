@@ -3,8 +3,13 @@
 #include <syscall-nr.h>
 #include "threads/interrupt.h"
 #include "threads/thread.h"
+#include "userprog/pagedir.h"
+#include "threads/vaddr.h"
 
 static void syscall_handler (struct intr_frame *);
+static void validate_user_pointer(void* addr);
+static void sys_write(void * args);
+
 
 void
 syscall_init (void) 
@@ -12,9 +17,105 @@ syscall_init (void)
   intr_register_int (0x30, 3, INTR_ON, syscall_handler, "syscall");
 }
 
-static void
-syscall_handler (struct intr_frame *f UNUSED) 
+static void**
+args_checker(int args, struct intr_frame *f)
 {
-  printf ("system call!\n");
-  thread_exit ();
+  int i = 0;
+  void* user_pointer = f->esp;
+  for(i = 0; i<args; i++)
+  {
+    user_pointer += 4;
+    //TODO: Uncomment this when fixing validate_user_pointer.
+    //validate_user_pointer(user_pointer);
+    
+    //printf("%i\n", *(int*)(user_pointer));
+  }
+  return f->esp;
 }
+
+static void
+sys_write(void * args)
+{
+  unsigned fid = *(int*)(args + 4);
+  char* message = (char*)(*(void**)(args + 8));
+  unsigned int length = *(int*)(args + 12);
+  if(fid == 0)
+  {
+    printf("Segmentation fault: cannot write to console input.");
+  }
+  else if(fid == 1)
+  {
+    putbuf(message, length);
+  }
+  else
+  {
+    
+  }
+}
+
+static void
+sys_read(void * args)
+{
+  unsigned fid = *(int*)(args + 4);
+  char* message = (char*)(*(void**)(args + 8));
+  unsigned int length = *(int*)(args + 12);
+  
+  if(fid == 0)
+  {
+    fgets (message, length, fid);
+  }
+  else if(fid == 1)
+  {
+    printf("Segmentation fault: cannot read from output");
+  }
+  int i = 0;
+  for(i = 0; i < length; i++)
+  {
+    *((void**)(args + i)) = message[i];
+  }
+}
+
+static void
+syscall_handler (struct intr_frame *f) 
+{
+  //printf ("system call!\n");
+  int *syscall_num = f->esp;
+  switch(*syscall_num)
+    {
+    case SYS_HALT:
+      {
+      }
+    case SYS_EXIT:
+      {
+      }
+    case SYS_EXEC:
+      {
+      }
+    case SYS_WAIT:
+      {
+      }
+    case SYS_WRITE:
+      {
+	args_checker(3, f);
+       	sys_write(f->esp);
+      }
+    }
+  //thread_exit ();
+}
+
+static void
+validate_user_pointer (void* addr)
+{
+  if(!is_user_vaddr(addr))
+  {
+    //Segmentation Fault:
+    printf("Segmentation fault: attempt to access kernel memory.");
+    exit(-1);
+  }
+  else if(lookup_page(pd_no(addr), addr, false))
+  {
+    //Page not found, e.g. the pointer goes to unmapped memory
+    printf("Segmentation fault: attempt to access unmapped memory.");
+  }
+}
+
