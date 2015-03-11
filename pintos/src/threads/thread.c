@@ -470,7 +470,7 @@ init_thread (struct thread *t, const char *name, int priority)
   t->stack = (uint8_t *) t + PGSIZE;
   t->priority = priority;
   t->magic = THREAD_MAGIC;
-  t->current_fd = 0;
+  t->current_fd = 2;
   t->exit = false;
   list_push_back (&all_list, &t->allelem);
 }

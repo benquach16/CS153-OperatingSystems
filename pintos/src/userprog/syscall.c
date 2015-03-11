@@ -155,14 +155,22 @@ syscall_handler (struct intr_frame *f)
 	    sys_exit(-1);
 	}
 	struct file *fil = filesys_open(filename);
+	if(!fil)
+	{
+	    //failed open
+	    f->eax = -1;
+	}
+	else
+	{
 	thread_current()->fd_table[thread_current()->current_fd] = fil;
 	f->eax = thread_current()->current_fd;
 	thread_current()->current_fd++;
-	
+	}
 	
 
 	break;
     }
+    
     case SYS_EXIT:
       {
 	args_checker(1, f);
