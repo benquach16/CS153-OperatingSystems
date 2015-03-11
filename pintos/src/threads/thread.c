@@ -98,6 +98,7 @@ thread_init (void)
   init_thread (initial_thread, "main", PRI_DEFAULT);
   initial_thread->status = THREAD_RUNNING;
   initial_thread->tid = allocate_tid ();
+  initial_thread->parent = NULL;
 }
 
 /* Starts preemptive thread scheduling by enabling interrupts.
@@ -586,8 +587,7 @@ allocate_tid (void)
 bool get_thread(tid_t tid)
 {
   struct list_elem *e;
-
-
+  
   for (e = list_begin (&all_list); e != list_end (&all_list);
        e = list_next (e))
     {

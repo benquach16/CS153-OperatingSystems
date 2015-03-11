@@ -99,9 +99,15 @@ static bool exit = false;
 int
 process_wait (tid_t child_tid UNUSED) 
 {
-    while(get_thread(child_tid));
+  bool gt = get_thread(child_tid);
+  while(gt)
+  {
+    intr_disable();
+    gt = get_thread(child_tid);
+    intr_enable();
+  }
     //while(1);
-    process_exit();
+  process_exit();
   return 0;
 }
 

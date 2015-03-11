@@ -15,7 +15,19 @@ static void sys_exit(int);
 
 static void sys_exit(int exit_code)
 {
+  if(thread_current()->parent != NULL)
+  {
+    thread_current()->parent->child_ret = exit_code;
+    thread_unblock(thread_current()->parent);
+  }
+
   thread_exit();
+}
+
+static void sys_wait(struct intr_frame *f)
+{
+  thread_block();
+  f->eax = thread_current()->child_ret;
 }
 
 void
@@ -83,7 +95,7 @@ sys_read(struct intr_frame * f)
 {
   unsigned fd = *(int*)(f->esp + 4);
   char* message = (char*)(*(void**)(f->esp + 8));
-  unsigned int length = *(int*)(f->esp + 12);
+  unsigned length = *(unsigned*)(f->esp + 12);
   
   if(fd == 0)
   {
@@ -105,14 +117,10 @@ syscall_handler (struct intr_frame *f)
 {
   //printf ("system call!\n");
   int *syscall_num = f->esp;
-  //check if esp is right
-  if(f->esp < 0x08048000 || f->esp > PHYS_BASE)
-      thread_exit();
   switch(*syscall_num)
     {
     case SYS_HALT:
       {
-	  shutdown_power_off();
 	break;
       }
     case SYS_EXIT:
@@ -127,7 +135,7 @@ syscall_handler (struct intr_frame *f)
       }
     case SYS_WAIT:
       {
-	  
+	sys_wait(f);
 	break;
       }
     case SYS_WRITE:
