@@ -13,13 +13,15 @@ static void sys_write(struct intr_frame *);
 static void sys_exit(int);
 
 static void sys_exit(int exit_code)
-{
+{   
+  thread_current()->child_ret = exit_code;
   if(thread_current()->parent != NULL)
-  {
-    thread_current()->parent->child_ret = exit_code;
-    thread_unblock(thread_current()->parent);
-  }
-
+    {
+      thread_current()->parent->child_ret = exit_code;
+      //  printf("Chuck Testa: %i", (int)thread_current()->child_ret);
+      thread_unblock(thread_current()->parent);
+    }
+  
   thread_exit();
 }
 
@@ -27,6 +29,7 @@ static void sys_wait(struct intr_frame *f)
 {
   thread_block();
   f->eax = thread_current()->child_ret;
+  printf((int)thread_current()->child_ret);
 }
 
 void
@@ -46,7 +49,6 @@ args_checker(int args, struct intr_frame *f)
     //TODO: Uncomment this when fixing validate_user_pointer.
     if(!valid_user_pointer(thread_current()->pagedir, user_pointer))
       {
-	printf("\n\n\nHere\n\n\n");
 	sys_exit(-1);
       }
     
@@ -123,7 +125,7 @@ syscall_handler (struct intr_frame *f)
   int *syscall_num = f->esp;
   //check if esp is right
   if(f->esp < 0x08048000 || f->esp > PHYS_BASE)
-    sys_exit(-1);
+    { sys_exit(-1);}
   switch(*syscall_num)
     {
     case SYS_HALT:

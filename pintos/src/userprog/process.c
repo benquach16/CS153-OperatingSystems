@@ -118,7 +118,7 @@ process_exit (void)
 
   struct thread *cur = thread_current ();
   if(strcmp(cur->name, "main"))
-    printf("%s: exit(0)\n",cur->name);
+    printf("%s: exit(%i)\n",cur->name, thread_current()->child_ret);
   exit = true;
   cur->exit=true;
   uint32_t *pd;
