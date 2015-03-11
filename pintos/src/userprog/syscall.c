@@ -5,11 +5,18 @@
 #include "threads/thread.h"
 #include "userprog/pagedir.h"
 #include "threads/vaddr.h"
+#include "filesys/file.h"
+#include "filesys/inode.h"
 
 static void syscall_handler (struct intr_frame *);
 static void validate_user_pointer(void* addr);
-static void sys_write(void * args);
+static void sys_write(struct intr_frame *);
+static void sys_exit(int);
 
+static void sys_exit(int exit_code)
+{
+  thread_exit();
+}
 
 void
 syscall_init (void) 
@@ -34,45 +41,62 @@ args_checker(int args, struct intr_frame *f)
 }
 
 static void
-sys_write(void * args)
+sys_write(struct intr_frame *f)
 {
-  unsigned fid = *(int*)(args + 4);
-  char* message = (char*)(*(void**)(args + 8));
-  unsigned int length = *(int*)(args + 12);
-  if(fid == 0)
+  unsigned fd = *(int*)(f->esp + 4);
+  char* message = (char*)(*(void**)(f->esp + 8));
+  unsigned int length = *(int*)(f->esp + 12);
+
+  if(fd == 0)
   {
-    printf("Segmentation fault: cannot write to console input.");
+    sys_exit(-1);
+    //printf("Segmentation fault: cannot write to console input.");
   }
-  else if(fid == 1)
+  else if(fd == 1)
   {
-      //putbuf(message, length);
-      printf(message);
+    int remaining = (int)length;
+    char* buffer = message;
+    while (remaining >= 1023)
+    {
+      putbuf(buffer, 1023);
+      remaining -= 1024;
+      buffer += 1024;
+    }
+    putbuf(buffer, remaining);
   }
   else
   {
-    
+    //check for fdtables
+    if(thread_current()->fd_table[fd]==NULL)
+    {
+      f->eax=-1;
+    }
+    else
+    {
+      f->eax=file_write(thread_current()->fd_table[fd], message, (off_t)length);
+    }
   }
 }
 
 static void
-sys_read(void * args)
+sys_read(struct intr_frame * f)
 {
-  unsigned fid = *(int*)(args + 4);
-  char* message = (char*)(*(void**)(args + 8));
-  unsigned int length = *(int*)(args + 12);
+  unsigned fd = *(int*)(f->esp + 4);
+  char* message = (char*)(*(void**)(f->esp + 8));
+  unsigned int length = *(int*)(f->esp + 12);
   
-  if(fid == 0)
+  if(fd == 0)
   {
-    fgets (message, length, fid);
+    fgets (message, length, fd);
   }
-  else if(fid == 1)
+  else if(fd == 1)
   {
     printf("Segmentation fault: cannot read from output");
   }
   int i = 0;
   for(i = 0; i < length; i++)
   {
-    *((void**)(args + i)) = message[i];
+    *((void**)(f->esp + i*4)) = message[i];
   }
 }
 
@@ -85,21 +109,31 @@ syscall_handler (struct intr_frame *f)
     {
     case SYS_HALT:
       {
+	break;
       }
     case SYS_EXIT:
       {
-	  thread_exit();
+	args_checker(1, f);
+	sys_exit(f->esp + 4);
+	break;
       }
     case SYS_EXEC:
       {
+	break;
       }
     case SYS_WAIT:
       {
+	break;
       }
     case SYS_WRITE:
       {
 	args_checker(3, f);
-       	sys_write(f->esp);
+       	sys_write(f);
+	break;
+      }
+    case SYS_READ:
+      {
+	break;
       }
     }
   //thread_exit ();
