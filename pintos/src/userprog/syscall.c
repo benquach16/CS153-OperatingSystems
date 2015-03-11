@@ -46,7 +46,7 @@ args_checker(int args, struct intr_frame *f)
     //TODO: Uncomment this when fixing validate_user_pointer.
     if(!valid_user_pointer(thread_current()->pagedir, user_pointer))
       {
-	printf("\n\n\nHere\n\n\n");
+	  //printf("\n\n\nHere\n\n\n");
 	sys_exit(-1);
       }
     
@@ -131,16 +131,37 @@ syscall_handler (struct intr_frame *f)
 	  shutdown_power_off();
 	break;
       }
-	  case SYS_CREATE:
-	{
+    case SYS_CREATE:
+    {
 
-		char *filename =  (char*)(*(void**)(f->esp + 4));
-		int filesize = *(int*)(f->esp+8);
-		//printf(filename);
-		bool success = filesys_create(filename, filesize);
-		f->eax = success;
-		break;
+	char *filename =  (char*)(*(void**)(f->esp + 4));
+	int filesize = *(int*)(f->esp+8);
+	//printf(filename);
+	if(!valid_user_pointer(thread_current()->pagedir, filename))
+	{
+	    sys_exit(-1);
 	}
+	bool success = filesys_create(filename, filesize);
+
+	f->eax = success;
+	break;
+    }
+    case SYS_OPEN:
+    {
+	char *filename =  (char*)(*(void**)(f->esp + 4));
+	if(!valid_user_pointer(thread_current()->pagedir, filename))
+	{
+	    sys_exit(-1);
+	}
+	struct file *fil = filesys_open(filename);
+	thread_current()->fd_table[thread_current()->current_fd] = fil;
+	f->eax = thread_current()->current_fd;
+	thread_current()->current_fd++;
+	
+	
+
+	break;
+    }
     case SYS_EXIT:
       {
 	args_checker(1, f);
