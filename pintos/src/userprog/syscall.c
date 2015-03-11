@@ -9,7 +9,6 @@
 #include "filesys/inode.h"
 
 static void syscall_handler (struct intr_frame *);
-static void validate_user_pointer(void* addr);
 static void sys_write(struct intr_frame *);
 static void sys_exit(int);
 
@@ -45,7 +44,11 @@ args_checker(int args, struct intr_frame *f)
   {
     user_pointer += 4;
     //TODO: Uncomment this when fixing validate_user_pointer.
-    //validate_user_pointer(user_pointer);
+    if(!valid_user_pointer(thread_current()->pagedir, user_pointer))
+      {
+	printf("\n\n\nHere\n\n\n");
+	sys_exit(-1);
+      }
     
     //printf("%i\n", *(int*)(user_pointer));
   }
@@ -120,7 +123,7 @@ syscall_handler (struct intr_frame *f)
   int *syscall_num = f->esp;
   //check if esp is right
   if(f->esp < 0x08048000 || f->esp > PHYS_BASE)
-      thread_exit();
+    sys_exit(-1);
   switch(*syscall_num)
     {
     case SYS_HALT:
@@ -128,7 +131,7 @@ syscall_handler (struct intr_frame *f)
 	  shutdown_power_off();
 	break;
       }
-	case SYS_CREATE:
+	  case SYS_CREATE:
 	{
 
 		char *filename =  (char*)(*(void**)(f->esp + 4));
@@ -138,11 +141,10 @@ syscall_handler (struct intr_frame *f)
 		f->eax = success;
 		break;
 	}
-	
     case SYS_EXIT:
       {
 	args_checker(1, f);
-	sys_exit(f->esp + 4);
+	sys_exit(*(int*)(f->esp + 4));
 	break;
       }
     case SYS_EXEC:
@@ -166,21 +168,5 @@ syscall_handler (struct intr_frame *f)
       }
     }
   //thread_exit ();
-}
-
-static void
-validate_user_pointer (void* addr)
-{
-  if(!is_user_vaddr(addr))
-  {
-    //Segmentation Fault:
-    printf("Segmentation fault: attempt to access kernel memory.");
-    exit(-1);
-  }
-  else if(lookup_page(pd_no(addr), addr, false))
-  {
-    //Page not found, e.g. the pointer goes to unmapped memory
-    printf("Segmentation fault: attempt to access unmapped memory.");
-  }
 }
 

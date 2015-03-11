@@ -5,6 +5,7 @@
 #include "threads/init.h"
 #include "threads/pte.h"
 #include "threads/palloc.h"
+#include <stdio.h>
 
 static uint32_t *active_pd (void);
 static void invalidate_pagedir (uint32_t *);
@@ -260,4 +261,23 @@ invalidate_pagedir (uint32_t *pd)
          "Translation Lookaside Buffers (TLBs)". */
       pagedir_activate (pd);
     } 
+}
+
+bool
+valid_user_pointer (uint32_t *pd, void* addr)
+{
+  if(!is_user_vaddr(addr))
+  {
+    //Segmentation Fault:
+    //printf("Segmentation fault: attempt to access kernel memory.");
+    //sys_exit(-1);
+    return false;
+  }
+  else if(!lookup_page(pd, addr, false))
+  {
+    //Page not found, e.g. the pointer goes to unmapped memory
+    //printf("Segmentation fault: attempt to access unmapped memory.");
+    return false;
+  }
+  return true;
 }
