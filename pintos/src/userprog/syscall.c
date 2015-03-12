@@ -62,7 +62,16 @@ sys_write(struct intr_frame *f)
   unsigned fd = *(int*)(f->esp + 4);
   char* message = (char*)(*(void**)(f->esp + 8));
   unsigned int length = *(int*)(f->esp + 12);
-
+  args_checker(3,f);
+  if (!is_user_vaddr(message) || message < 0x08048000)
+      sys_exit(-1);
+  void *ptr = pagedir_get_page(thread_current()->pagedir, message);
+  if(message == NULL)
+      sys_exit(-1);
+  if (!ptr)
+  {
+      sys_exit(-1);
+  }
   if(fd == 0)
   {
     sys_exit(-1);
@@ -82,15 +91,16 @@ sys_write(struct intr_frame *f)
   }
   else
   {
-    //check for fdtables
-    if(thread_current()->fd_table[fd]==NULL)
-    {
-      f->eax=-1;
-    }
-    else
-    {
-      f->eax=file_write(thread_current()->fd_table[fd], message, (off_t)length);
-    }
+      //check for fdtables
+      if(fd >= thread_current()->current_fd)
+      {
+	  f->eax=-1;
+	  sys_exit(-1);
+      }
+      else
+      {
+	  f->eax=file_write(thread_current()->fd_table[fd], message, (off_t)length);
+      }
   }
 }
 
@@ -98,22 +108,53 @@ static void
 sys_read(struct intr_frame * f)
 {
   unsigned fd = *(int*)(f->esp + 4);
-  char* message = (char*)(*(void**)(f->esp + 8));
+  void* message = (void*)(f->esp + 8);
   unsigned length = *(unsigned*)(f->esp + 12);
   
-  if(fd == 0)
+  if (!is_user_vaddr(message) || message < 0x08048000)
+      sys_exit(-1);
+  void *ptr = pagedir_get_page(thread_current()->pagedir, message);
+  if(message == NULL)
+      sys_exit(-1);
+  if (!ptr)
   {
-    fgets (message, length, fd);
+      sys_exit(-1);
   }
-  else if(fd == 1)
-  {
-    printf("Segmentation fault: cannot read from output");
-  }
-  int i = 0;
+  message = ptr;
+  int i;
+  
+  char * local = (char*) message;
   for(i = 0; i < length; i++)
   {
-    *((void**)(f->esp + i*4)) = message[i];
+      if (!is_user_vaddr(local) || local < 0x08048000)
+	  sys_exit(-1);      
+      local++;
+      }
+  if(fd == 0)
+  {
+      int i;
+      uint8_t* local_buffer = (uint8_t *) message;
+      for(i = 0; i < length; i++)
+      {
+	  local_buffer[i] = input_getc();
+      }
+      f->eax = length;
   }
+
+  else
+  {
+      if(fd >= thread_current()->current_fd)
+      {
+	  //f->eax=-1;
+	  sys_exit(-1);
+      }
+      else
+      {
+	  //f->eax=file_write(thread_current()->fd_table[fd], message, (off_t)length);
+	  f->eax = file_read(thread_current()->fd_table[fd],message,(off_t)length);
+      }      
+  }
+
 }
 
 static void
@@ -162,15 +203,22 @@ syscall_handler (struct intr_frame *f)
 	}
 	else
 	{
-	thread_current()->fd_table[thread_current()->current_fd] = fil;
-	f->eax = thread_current()->current_fd;
-	thread_current()->current_fd++;
+	    thread_current()->fd_table[thread_current()->current_fd] = fil;
+	    int ret = thread_current()->current_fd;
+	    thread_current()->current_fd++;
+	    f->eax = ret;
 	}
-	
-
 	break;
     }
-    
+    case SYS_READ:
+    {
+	sys_read(f);
+	
+	
+	
+	//f->eax = 239;
+	break;
+    }
     case SYS_EXIT:
       {
 	args_checker(1, f);
@@ -192,10 +240,7 @@ syscall_handler (struct intr_frame *f)
        	sys_write(f);
 	break;
       }
-    case SYS_READ:
-      {
-	break;
-      }
+
     }
   //thread_exit ();
 }
