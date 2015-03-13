@@ -108,7 +108,7 @@ static void
 sys_read(struct intr_frame * f)
 {
   unsigned fd = *(int*)(f->esp + 4);
-  void* message = (void*)(f->esp + 8);
+  char* message = (char*)(*(void**)(f->esp + 8));
   unsigned length = *(unsigned*)(f->esp + 12);
   
   if (!is_user_vaddr(message) || message < 0x08048000)
@@ -120,23 +120,23 @@ sys_read(struct intr_frame * f)
   {
       sys_exit(-1);
   }
-  message = ptr;
+  //message = ptr;
   int i;
-  
+/*  
   char * local = (char*) message;
   for(i = 0; i < length; i++)
   {
       if (!is_user_vaddr(local) || local < 0x08048000)
 	  sys_exit(-1);      
       local++;
-      }
+      }*/
   if(fd == 0)
   {
       int i;
       uint8_t* local_buffer = (uint8_t *) message;
       for(i = 0; i < length; i++)
       {
-	  local_buffer[i] = input_getc();
+	  message[i] = input_getc();
       }
       f->eax = length;
   }
@@ -151,7 +151,7 @@ sys_read(struct intr_frame * f)
       else
       {
 	  //f->eax=file_write(thread_current()->fd_table[fd], message, (off_t)length);
-	  f->eax = file_read(thread_current()->fd_table[fd],message,(off_t)length);
+	  f->eax = file_read(thread_current()->fd_table[fd],message,length);
       }      
   }
 
@@ -210,12 +210,21 @@ syscall_handler (struct intr_frame *f)
 	}
 	break;
     }
+    case SYS_CLOSE:
+    {
+	int fd = *(int*)(f->esp+4);
+	if(thread_current()->fd_table[fd] == NULL)
+	    sys_exit(-1);
+	struct file* fil = thread_current()->fd_table[fd];
+	//thread_current()->current_fd--;
+	thread_current()->fd_table[fd] = NULL;
+	
+	file_close(fil);
+	break;
+    }
     case SYS_READ:
     {
-	sys_read(f);
-	
-	
-	
+	sys_read(f);	
 	//f->eax = 239;
 	break;
     }
@@ -234,6 +243,26 @@ syscall_handler (struct intr_frame *f)
 	sys_wait(f);
 	break;
       }
+    case SYS_FILESIZE:
+    {
+	int fd = *(int*)(f->esp+4);
+	struct file* fil = thread_current()->fd_table[fd];
+	f->eax = file_length(fil);
+	break;
+    }
+    case SYS_SEEK:
+    {
+	int fd = *(int*)(f->esp + 4);
+	unsigned position = *(unsigned*)(f->esp+8);
+	if(fd >= thread_current()->current_fd)
+	{
+	    f->eax = -1;
+	    sys_exit(-1);
+	}
+	struct file* fil = thread_current()->fd_table[fd];
+	file_seek(fil,position);
+	break;
+    }
     case SYS_WRITE:
       {
 	args_checker(3, f);
