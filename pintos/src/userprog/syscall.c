@@ -140,7 +140,10 @@ sys_read(struct intr_frame * f)
       }
       f->eax = length;
   }
-
+  else if(fd == 1)
+  {
+      
+  }
   else
   {
       if(fd >= thread_current()->current_fd)
@@ -150,7 +153,7 @@ sys_read(struct intr_frame * f)
       }
       else
       {
-	  //f->eax=file_write(thread_current()->fd_table[fd], message, (off_t)length);
+       
 	  f->eax = file_read(thread_current()->fd_table[fd],message,length);
       }      
   }
@@ -213,6 +216,10 @@ syscall_handler (struct intr_frame *f)
     case SYS_CLOSE:
     {
 	int fd = *(int*)(f->esp+4);
+	if(fd >= thread_current()->current_fd)
+	{
+	    sys_exit(-1);
+	}
 	if(thread_current()->fd_table[fd] == NULL)
 	    sys_exit(-1);
 	struct file* fil = thread_current()->fd_table[fd];
