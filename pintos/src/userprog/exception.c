@@ -135,7 +135,6 @@ page_fault (struct intr_frame *f)
      [IA32-v3a] 5.15 "Interrupt 14--Page Fault Exception
      (#PF)". */
   asm ("movl %%cr2, %0" : "=r" (fault_addr));
-
   /* Turn interrupts back on (they were only off so that we could
      be assured of reading CR2 before it changed). */
   intr_enable ();
@@ -148,6 +147,44 @@ page_fault (struct intr_frame *f)
   write = (f->error_code & PF_W) != 0;
   user = (f->error_code & PF_U) != 0;
 
+  if(!not_present)
+  {
+        thread_current()->child_ret = -1;
+  if(thread_current()->parent != NULL)
+    {
+      thread_current()->parent->child_ret = -1;
+      //  printf("Chuck Testa: %i", (int)thread_current()->child_ret);
+      thread_unblock(thread_current()->parent);
+    }
+  
+  thread_exit();
+  }
+
+  if(!write)
+  {
+        thread_current()->child_ret = -1;
+  if(thread_current()->parent != NULL)
+    {
+      thread_current()->parent->child_ret = -1;
+      //  printf("Chuck Testa: %i", (int)thread_current()->child_ret);
+      thread_unblock(thread_current()->parent);
+    }
+  
+  thread_exit();
+  }
+
+  if(!user)
+  {
+        thread_current()->child_ret = -1;
+  if(thread_current()->parent != NULL)
+    {
+      thread_current()->parent->child_ret = -1;
+      //  printf("Chuck Testa: %i", (int)thread_current()->child_ret);
+      thread_unblock(thread_current()->parent);
+    }
+  
+  thread_exit();
+  }
   /* To implement virtual memory, delete the rest of the function
      body, and replace it with code that brings in the page to
      which fault_addr refers. */

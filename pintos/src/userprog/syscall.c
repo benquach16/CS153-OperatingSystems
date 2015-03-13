@@ -166,9 +166,11 @@ syscall_handler (struct intr_frame *f)
   //printf ("system call!\n");
 
   int *syscall_num = f->esp;
+  
   //check if esp is right
   if(f->esp < 0x08048000 || f->esp > PHYS_BASE)
     { sys_exit(-1);}
+  
   switch(*syscall_num)
     {
     case SYS_HALT:
