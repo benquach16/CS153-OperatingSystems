@@ -266,18 +266,12 @@ invalidate_pagedir (uint32_t *pd)
 bool
 valid_user_pointer (uint32_t *pd, void* addr)
 {
-  if(!is_user_vaddr(addr))
+  if(is_user_vaddr(addr) && addr >= (void*)0x08048000)
   {
-    //Segmentation Fault:
-    //printf("Segmentation fault: attempt to access kernel memory.");
-    //sys_exit(-1);
-    return false;
+    if(pagedir_get_page(pd, addr) != NULL)
+      {
+	return true;
+      }
   }
-  else if(!lookup_page(pd, addr, false))
-  {
-    //Page not found, e.g. the pointer goes to unmapped memory
-    //printf("Segmentation fault: attempt to access unmapped memory.");
-    return false;
-  }
-  return true;
+  return false;
 }

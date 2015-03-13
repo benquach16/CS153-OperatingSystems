@@ -19,6 +19,9 @@
 #include "threads/thread.h"
 #include "threads/vaddr.h"
 
+#define THREAD_MAGIC 0xcd6abf4b
+
+
 static thread_func start_process NO_RETURN;
 static bool load (const char *cmdline, void (**eip) (void), void **esp);
 
@@ -27,7 +30,7 @@ static bool load (const char *cmdline, void (**eip) (void), void **esp);
    before process_execute() returns.  Returns the new process's
    thread id, or TID_ERROR if the thread cannot be created. */
 tid_t
-process_execute (const char *file_name) 
+process_execute (const char *file_name, struct thread* parent) 
 {
   char *fn_copy;
   tid_t tid;
@@ -47,9 +50,13 @@ process_execute (const char *file_name)
   strlcpy (fn_copy, file_name, PGSIZE);
   char *program;
   file_name = strtok_r((char*)file_name, " ", &program);
-  tid = thread_create (file_name, PRI_DEFAULT, start_process, fn_copy);
+  tid = thread_create (file_name, PRI_DEFAULT, start_process, fn_copy, parent);
+  thread_current()->gave_birth = 1;
   if (tid == TID_ERROR)
-    palloc_free_page (fn_copy); 
+    {
+      palloc_free_page (fn_copy); 
+      return -1;
+    }
   return tid;
 }
 
@@ -73,9 +80,16 @@ start_process (void *file_name_)
 
   /* If load failed, quit. */
   palloc_free_page (file_name);
-  if (!success) 
+  if (!success)
+  {
+    printf("load: %s: open failed", file_name);
     thread_exit ();
-
+  }
+  else
+  {
+    
+  }
+  
   /* Start the user process by simulating a return from an
      interrupt, implemented by intr_exit (in
      threads/intr-stubs.S).  Because intr_exit takes all of its
@@ -97,17 +111,17 @@ start_process (void *file_name_)
    does nothing. */
 static bool exit = false;
 int
-process_wait (tid_t child_tid UNUSED) 
+process_wait (tid_t child_tid) 
 {
   bool gt = get_thread(child_tid);
-  while(gt)
+  while(tid_exists(child_tid))
   {
-    intr_disable();
+    /*intr_disable();
     gt = get_thread(child_tid);
-    intr_enable();
+    intr_enable();*/
   }
     //while(1);
-  process_exit();
+  //process_exit();
   return 0;
 }
 
@@ -115,19 +129,31 @@ process_wait (tid_t child_tid UNUSED)
 void
 process_exit (void)
 {
-
+  intr_disable();
   struct thread *cur = thread_current ();
-  if(strcmp(cur->name, "main"))
-    printf("%s: exit(%i)\n",cur->name, thread_current()->child_ret);
   exit = true;
   cur->exit=true;
   uint32_t *pd;
+
+
+  //printf("Exit: %s\n", thread_current()->name);
+
+  if(thread_current()->parent != NULL)
+  {
+    thread_current()->parent->child_ret = thread_current()->child_ret;
+    //printf("Chuck Testa: %i", (int)thread_current()->child_ret);
+    //thread_unblock(thread_current()->parent);
+  }
+  
+  //if(strcmp(thread_current()->name, "main"))
+    printf("%s: exit(%i)\n",thread_current()->name, thread_current()->child_ret);
+  
 
   /* Destroy the current process's page directory and switch back
      to the kernel-only page directory. */
 
   pd = cur->pagedir;
-  if (pd != NULL) 
+  if (pd != NULL)
     {
       /* Correct ordering here is crucial.  We must set
          cur->pagedir to NULL before switching page directories,
@@ -136,10 +162,11 @@ process_exit (void)
          directory before destroying the process's page
          directory, or our active page directory will be one
          that's been freed (and cleared). */
-	//cur->pagedir = NULL;
-	//pagedir_activate (NULL);
-	//pagedir_destroy (pd);
+	cur->pagedir = NULL;
+	pagedir_activate (NULL);
+	pagedir_destroy (pd);
     }
+  intr_enable();
 }
 
 /* Sets up the CPU for running user code in the current
@@ -351,7 +378,7 @@ load (const char *file_name, void (**eip) (void), void **esp)
   *eip = (void (*) (void)) ehdr.e_entry;
 
   success = true;
-
+  
  done:
   /* We arrive here whether the load is successful or not. */
   file_close (file);
@@ -681,4 +708,10 @@ install_page (void *upage, void *kpage, bool writable)
      address, then map our page there. */
   return (pagedir_get_page (t->pagedir, upage) == NULL
           && pagedir_set_page (t->pagedir, upage, kpage, writable));
+}
+
+void
+exec_process (char* filename)
+{
+  start_process(filename);
 }
