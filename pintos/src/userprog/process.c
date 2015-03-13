@@ -40,7 +40,7 @@ process_execute (const char *file_name, struct thread* parent)
   fn_copy = palloc_get_page (0);
   if (fn_copy == NULL)
     return TID_ERROR;
-  
+
   //char* program = palloc_get_page(0);
   //file_name = strtok_r(file_name, " ", &program);
   //fn_copy = strtok_r(fn_copy, " ", &program);
@@ -50,8 +50,10 @@ process_execute (const char *file_name, struct thread* parent)
   strlcpy (fn_copy, file_name, PGSIZE);
   char *program;
   file_name = strtok_r((char*)file_name, " ", &program);
+
   tid = thread_create (file_name, PRI_DEFAULT, start_process, fn_copy, parent);
   thread_current()->gave_birth = 1;
+
   if (tid == TID_ERROR)
     {
       palloc_free_page (fn_copy); 

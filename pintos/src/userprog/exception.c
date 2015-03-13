@@ -4,7 +4,8 @@
 #include "userprog/gdt.h"
 #include "threads/interrupt.h"
 #include "threads/thread.h"
-
+#include "userprog/pagedir.h"
+#include "threads/vaddr.h"
 /* Number of page faults processed. */
 static long long page_fault_cnt;
 
@@ -174,6 +175,19 @@ page_fault (struct intr_frame *f)
   }
 
   if(!user)
+  {
+        thread_current()->child_ret = -1;
+  if(thread_current()->parent != NULL)
+    {
+      thread_current()->parent->child_ret = -1;
+      //  printf("Chuck Testa: %i", (int)thread_current()->child_ret);
+      thread_unblock(thread_current()->parent);
+    }
+  
+  thread_exit();
+  }
+
+  if(!is_user_vaddr(fault_addr) || fault_addr < 0x08048000)
   {
         thread_current()->child_ret = -1;
   if(thread_current()->parent != NULL)

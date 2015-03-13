@@ -5,9 +5,12 @@
 #include "threads/thread.h"
 #include "userprog/pagedir.h"
 #include "threads/vaddr.h"
+#include "threads/synch.h"
 #include "filesys/file.h"
 #include "filesys/inode.h"
 #include "userprog/process.h"
+
+struct lock filelock;
 
 static void syscall_handler (struct intr_frame *);
 static void sys_write(struct intr_frame *);
@@ -67,6 +70,7 @@ static void sys_wait(struct intr_frame *f)
 void
 syscall_init (void) 
 {
+    lock_init(&filelock);
   intr_register_int (0x30, 3, INTR_ON, syscall_handler, "syscall");
 }
 
@@ -129,7 +133,9 @@ sys_write(struct intr_frame *f)
       }
       else
       {
+	  lock_acquire(&filelock);
 	  f->eax=file_write(thread_current()->fd_table[fd], message, (off_t)length);
+	  lock_release(&filelock);
       }
   }
 }
@@ -183,8 +189,9 @@ sys_read(struct intr_frame * f)
       }
       else
       {
-       
+	  lock_acquire(&filelock);
 	  f->eax = file_read(thread_current()->fd_table[fd],message,length);
+	  lock_release(&filelock);
       }      
   }
 
@@ -291,6 +298,13 @@ syscall_handler (struct intr_frame *f)
 		sys_wait(f);
 		break;
     }
+    case SYS_REMOVE:
+    {
+	char* message = (char*)(*(void**)(f->esp + 4));
+	bool ret = filesys_remove(message);
+	f->eax = ret;
+	break;
+    }
     case SYS_FILESIZE:
     {
 		int fd = *(int*)(f->esp+4);
@@ -316,6 +330,13 @@ syscall_handler (struct intr_frame *f)
 		args_checker(3, f);
        	sys_write(f);
 		break;
+    }
+    case SYS_TELL:
+    {
+	int fd = *(int*)(f->esp+4);
+	struct file *fil = thread_current()->fd_table[fd];
+	f->eax = file_tell(fil);
+	break;
     }
 	default:
     {
