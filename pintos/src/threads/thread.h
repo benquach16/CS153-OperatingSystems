@@ -94,6 +94,7 @@ struct thread
     /* Shared between thread.c and synch.c. */
     struct list_elem elem;              /* List element. */
     struct file* fd_table[128];
+	int current_fd;
     struct thread* parent;
     int child_ret;
     int gave_birth;

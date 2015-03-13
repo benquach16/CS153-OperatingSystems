@@ -490,6 +490,7 @@ init_thread (struct thread *t, const char *name, int priority, struct thread * p
   t->stack = (uint8_t *) t + PGSIZE;
   t->priority = priority;
   t->magic = THREAD_MAGIC;
+  t->current_fd = 2;
   t->exit = false;
   list_push_back (&all_list, &t->allelem);
   t->parent = parent;
@@ -618,7 +619,7 @@ bool get_thread(tid_t tid)
     }
   return false;
 }
-
+
 /* Offset of `stack' member within `struct thread'.
    Used by switch.S, which can't figure it out on its own. */
 uint32_t thread_stack_ofs = offsetof (struct thread, stack);
